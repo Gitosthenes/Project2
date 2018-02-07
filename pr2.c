@@ -1,4 +1,26 @@
-/*Comment placeholder for later.*/
+/* Name:        Alex Bledsoe
+ *
+ * Environment: Tested on Mint 18.3 Desktop 32-bit
+ *
+ * Comments:    Using bmpchange.c as a foundation, my logic was to take in the specified file based on
+ *              what the user input, process it into 2 arrays (one for the header and a 2d array for the pixel data),
+ *              then pass those arrays off to four separate functions, each of which would manipulate the image in
+ *              a different way.
+ *
+ *              Said functions would each make a copy of the 2d array for manipulation so that the original would be
+ *              intact when passing it to the next function. Then they would do the manipulation, write the new pixel
+ *              data to a .bmp file and close the file stream.
+ *
+ * Xtra Credit: I added a function called pixelGradient that starts with the image in full resolution on the left, but
+ *              gradually becomes more pixelated as you move to the right.
+ *
+ *              In reality I came up with a single algorithm to pixelate the image. take the color values of a single
+ *              pixel in the original image and change the pixels around it to match, essentially giving the appearance
+ *              that each pixel is larger that it is. I took this and applied it to the new image in fourths, increasing
+ *              the pixelation effect  each time. The first quarter was full resolution. In the second quarter, the
+ *              pixels are 4 times as large, 8 times in the next quarter, and 16 times in the last.
+ *
+ */
 
 #include <stdio.h>
 #include <string.h>
@@ -8,18 +30,95 @@
 #define ONE_BYTE 1
 #define COLORS_PER_PIXEL 3
 
+void pixelGradient(int theHeight, int theWidth, unsigned char thePixels[][theWidth * COLORS_PER_PIXEL], char *theHeader) {
+
+    FILE* outfile = fopen("PixelGradient.bmp", "wb");
+    unsigned char newArray[theHeight][theWidth * COLORS_PER_PIXEL];
+    memcpy(newArray, thePixels, (size_t) (theHeight * theWidth * COLORS_PER_PIXEL));
+
+    int oldRow, oldColumn, newRow, newColumn;
+
+    newRow = 0;
+    for (oldRow = 0; oldRow < theHeight; oldRow += 2) {
+        newColumn = theWidth * COLORS_PER_PIXEL * 1/4;
+        for (oldColumn = theWidth * COLORS_PER_PIXEL * 1/4; oldColumn < theWidth * COLORS_PER_PIXEL; oldColumn += (2 * COLORS_PER_PIXEL)) {
+            unsigned char blue = thePixels[oldRow][oldColumn];
+            unsigned char green = thePixels[oldRow][oldColumn + 1];
+            unsigned char red = thePixels[oldRow][oldColumn + 2];
+
+            int i, j;
+            for (i = 0; i < 2; i++) {
+                for (j = 0; j < 6; j += 3) {
+                    newArray[newRow + i][newColumn + j] = blue;
+                    newArray[newRow + i][newColumn + j + 1] = green;
+                    newArray[newRow + i][newColumn + j + 2] = red;
+                }
+            }
+            newColumn += 6;
+        }
+        newRow += 2;
+    }
+
+    newRow = 0;
+    for (oldRow = 0; oldRow < theHeight; oldRow += 4) {
+        newColumn = theWidth * COLORS_PER_PIXEL * 1/2;
+        for (oldColumn = theWidth * COLORS_PER_PIXEL * 1/2; oldColumn < theWidth * COLORS_PER_PIXEL; oldColumn += (4 * COLORS_PER_PIXEL)) {
+            unsigned char blue = thePixels[oldRow][oldColumn];
+            unsigned char green = thePixels[oldRow][oldColumn + 1];
+            unsigned char red = thePixels[oldRow][oldColumn + 2];
+
+            int i, j;
+            for (i = 0; i < 4; i++) {
+                for (j = 0; j < 12; j += 3) {
+                    newArray[newRow + i][newColumn + j] = blue;
+                    newArray[newRow + i][newColumn + j + 1] = green;
+                    newArray[newRow + i][newColumn + j + 2] = red;
+                }
+            }
+            newColumn += 12;
+        }
+        newRow += 4;
+    }
+
+    newRow = 0;
+    for (oldRow = 0; oldRow < theHeight; oldRow += 8) {
+        newColumn = theWidth * COLORS_PER_PIXEL * 3/4;
+        for (oldColumn = theWidth * COLORS_PER_PIXEL * 3/4; oldColumn < theWidth * COLORS_PER_PIXEL; oldColumn += (8 * COLORS_PER_PIXEL)) {
+            unsigned char blue = thePixels[oldRow][oldColumn];
+            unsigned char green = thePixels[oldRow][oldColumn + 1];
+            unsigned char red = thePixels[oldRow][oldColumn + 2];
+
+            int row, column;
+            for (row = 0; row < 8; row++) {
+                for (column = 0; column < 24; column += 3) {
+                    newArray[newRow + row][newColumn + column] = blue;
+                    newArray[newRow + row][newColumn + column + 1] = green;
+                    newArray[newRow + row][newColumn + column + 2] = red;
+                }
+            }
+            newColumn += 24;
+        }
+        newRow += 8;
+    }
+
+    fwrite(theHeader, ONE_BYTE, HEADER_SIZE, outfile);
+    fwrite(newArray, ONE_BYTE, (size_t) (theHeight * theWidth * COLORS_PER_PIXEL), outfile);
+
+    fclose(outfile);
+}
+
 void invertColors(int theHeight, int theWidth, unsigned char thePixels[][theWidth * COLORS_PER_PIXEL], char *theHeader) {
 
     FILE* outfile = fopen("Copy1.bmp", "wb");
     unsigned char newArray[theHeight][theWidth * COLORS_PER_PIXEL];
     memcpy(newArray, thePixels, (size_t) (theHeight * theWidth * COLORS_PER_PIXEL));
 
-    int r, c;
-    for (r = 0; r < theHeight; r++) {
-        for (c = 0; c < (theWidth * COLORS_PER_PIXEL); c++/*<--ayy*/) {
-            unsigned char temp = newArray[r][c];
+    int row, column;
+    for (row = 0; row < theHeight; row++) {
+        for (column = 0; column < (theWidth * COLORS_PER_PIXEL); column++) {
+            unsigned char temp = newArray[row][column];
             temp = (unsigned char) (255 - temp);
-            newArray[r][c] = temp;
+            newArray[row][column] = temp;
         }
     }
 
@@ -35,18 +134,18 @@ void increaseContrast(int theHeight, int theWidth, unsigned char thePixels[][the
     unsigned char newArray[theHeight][theWidth * COLORS_PER_PIXEL];
     memcpy(newArray, thePixels, (size_t) (theHeight * theWidth * COLORS_PER_PIXEL));
 
-    int r, c;
+    int row, column;
     float contrastRatio = 2.9695;
-    for (r = 0; r < theHeight; r++) {
-        for (c = 0; c < (theWidth * COLORS_PER_PIXEL); c++/*<--ayy*/) {
-            int temp = newArray[r][c];
+    for (row = 0; row < theHeight; row++) {
+        for (column = 0; column < (theWidth * COLORS_PER_PIXEL); column++) {
+            int temp = newArray[row][column];
             temp = (int) (contrastRatio * (temp - 128) + 128);
             if (temp < 0) {
                 temp = 0;
             } else if (temp > 255) {
                 temp = 255;
             }
-            newArray[r][c] = (unsigned char) temp;
+            newArray[row][column] = (unsigned char) temp;
         }
     }
 
@@ -63,27 +162,27 @@ void flipAndMirror(int theHeight, int theWidth, unsigned char thePixels[][theWid
     memcpy(newArray, thePixels, (size_t) (theHeight * theWidth * COLORS_PER_PIXEL));
 
     /* Flip: */
-    int or, r, c;
-    for (c = 0; c < theWidth * COLORS_PER_PIXEL; c += 3) {
-        or = theHeight - 1;
-        for (r = 0; r < theHeight; r++) {
-            newArray[r][c] = thePixels[or][c];
-            newArray[r][c + 1] = thePixels[or][c + 1];
-            newArray[r][c + 2] = thePixels[or][c + 2];
-            or--;
+    int oldRow, row, column;
+    for (column = 0; column < theWidth * COLORS_PER_PIXEL; column += 3) {
+        oldRow = theHeight - 1;
+        for (row = 0; row < theHeight; row++) {
+            newArray[row][column] = thePixels[oldRow][column];
+            newArray[row][column + 1] = thePixels[oldRow][column + 1];
+            newArray[row][column + 2] = thePixels[oldRow][column + 2];
+            oldRow--;
         }
     }
 
     /* Mirror: */
-    for (r = 0; r < theHeight; r++) {
-        int p = 0;
-        for (c = theWidth * COLORS_PER_PIXEL - 1; c > theWidth * COLORS_PER_PIXEL / 2; c -= 3) {
+    for (row = 0; row < theHeight; row++) {
+        int startOfPixel = 0;
+        for (column = theWidth * COLORS_PER_PIXEL - 1; column > theWidth * COLORS_PER_PIXEL / 2; column -= 3) {
 
-            newArray[r][c] = newArray[r][p + 2];
-            newArray[r][c - 1] = newArray[r][p + 1];
-            newArray[r][c - 2] = newArray[r][p];
+            newArray[row][column] = newArray[row][startOfPixel + 2];
+            newArray[row][column - 1] = newArray[row][startOfPixel + 1];
+            newArray[row][column - 2] = newArray[row][startOfPixel];
 
-            p += 3;
+            startOfPixel += 3;
         }
     }
 
@@ -99,56 +198,59 @@ void scaleDown(int theHeight, int theWidth, unsigned char thePixels[][theWidth *
     unsigned char newArray[theHeight][theWidth * COLORS_PER_PIXEL];
     memcpy(newArray, thePixels, (size_t) (theHeight * theWidth * COLORS_PER_PIXEL));
 
-    int or, oc, nr, nc;
+    int oldRow, oldColumn, newRow, newColumn;
 
-    nr = theHeight / 2;
-    for (or = 0; or < theHeight; or += 2) {
-        nc = 0;
-        for (oc = 0; oc < theWidth * COLORS_PER_PIXEL; oc += (2 * COLORS_PER_PIXEL)) {
-            newArray[nr][nc] = 0;
-            newArray[nr][nc + 1] = 0;
-            newArray[nr][nc + 2] = thePixels[or][oc];
-            nc += 3;
+    /* Red copy in top-left. */
+    newRow = theHeight / 2;
+    for (oldRow = 0; oldRow < theHeight; oldRow += 2) {
+        newColumn = 0;
+        for (oldColumn = 0; oldColumn < theWidth * COLORS_PER_PIXEL; oldColumn += (2 * COLORS_PER_PIXEL)) {
+            newArray[newRow][newColumn] = 0;
+            newArray[newRow][newColumn + 1] = 0;
+            newArray[newRow][newColumn + 2] = thePixels[oldRow][oldColumn];
+            newColumn += 3;
         }
-        nr++;
+        newRow++;
     }
 
-    nr = theHeight / 2;
-    for (or = 0; or < theHeight; or += 2) {
-        nc = theWidth * COLORS_PER_PIXEL / 2;
-        for (oc = 0; oc < theWidth * COLORS_PER_PIXEL; oc += (2 * COLORS_PER_PIXEL)) {
-            newArray[nr][nc] = 0;
-            newArray[nr][nc + 1] = thePixels[or][oc];
-            newArray[nr][nc + 2] = 0;
-            nc += 3;
+    /* Green copy in top-right. */
+    newRow = theHeight / 2;
+    for (oldRow = 0; oldRow < theHeight; oldRow += 2) {
+        newColumn = theWidth * COLORS_PER_PIXEL / 2;
+        for (oldColumn = 0; oldColumn < theWidth * COLORS_PER_PIXEL; oldColumn += (2 * COLORS_PER_PIXEL)) {
+            newArray[newRow][newColumn] = 0;
+            newArray[newRow][newColumn + 1] = thePixels[oldRow][oldColumn];
+            newArray[newRow][newColumn + 2] = 0;
+            newColumn += 3;
         }
-        nr++;
+        newRow++;
     }
 
-    nr = 0;
-    for (or = 0; or < theHeight; or += 2) {
-        nc = 0;
-        for (oc = 0; oc < theWidth * COLORS_PER_PIXEL; oc += (2 * COLORS_PER_PIXEL)) {
-            newArray[nr][nc] = thePixels[or][oc];
-            newArray[nr][nc + 1] = 0;
-            newArray[nr][nc + 2] = 0;
-            nc += 3;
+    /* Blue copy in bottom-left. */
+    newRow = 0;
+    for (oldRow = 0; oldRow < theHeight; oldRow += 2) {
+        newColumn = 0;
+        for (oldColumn = 0; oldColumn < theWidth * COLORS_PER_PIXEL; oldColumn += (2 * COLORS_PER_PIXEL)) {
+            newArray[newRow][newColumn] = thePixels[oldRow][oldColumn];
+            newArray[newRow][newColumn + 1] = 0;
+            newArray[newRow][newColumn + 2] = 0;
+            newColumn += 3;
         }
-        nr++;
+        newRow++;
     }
 
-    nr = 0;
-    for (or = 0; or < theHeight; or += 2) {
-        nc = theWidth * COLORS_PER_PIXEL / 2;
-        for (oc = 0; oc < theWidth * COLORS_PER_PIXEL; oc += (2 * COLORS_PER_PIXEL)) {
-            newArray[nr][nc] = thePixels[or][oc];
-            newArray[nr][nc + 1] = thePixels[or][oc + 1];
-            newArray[nr][nc + 2] = thePixels[or][oc + 2];
-            nc += 3;
+    /* Full copy in bottom-right. */
+    newRow = 0;
+    for (oldRow = 0; oldRow < theHeight; oldRow += 2) {
+        newColumn = theWidth * COLORS_PER_PIXEL / 2;
+        for (oldColumn = 0; oldColumn < theWidth * COLORS_PER_PIXEL; oldColumn += (2 * COLORS_PER_PIXEL)) {
+            newArray[newRow][newColumn] = thePixels[oldRow][oldColumn];
+            newArray[newRow][newColumn + 1] = thePixels[oldRow][oldColumn + 1];
+            newArray[newRow][newColumn + 2] = thePixels[oldRow][oldColumn + 2];
+            newColumn += 3;
         }
-        nr++;
+        newRow++;
     }
-
 
     fwrite(theHeader, ONE_BYTE, HEADER_SIZE, outfile);
     fwrite(newArray, ONE_BYTE, (size_t) (theHeight * theWidth * COLORS_PER_PIXEL), outfile);
@@ -178,10 +280,10 @@ int main() {
     increaseContrast(height, width, pixels, header);
     flipAndMirror(height, width, pixels, header);
     scaleDown(height, width, pixels, header);
+    pixelGradient(height, width, pixels, header);
 
     fclose(infile);
     printf("Done. Check the generated images\n");
 
     return 0;
 }
-
